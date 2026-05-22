@@ -1,14 +1,17 @@
-import { Controller, Post, Body, Inject } from '@nestjs/common';
-import Redis from 'ioredis';
+import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import { QueueService } from './queue.service';
+import { EmailJobDto } from './dto/email-job.dto';
+import { Public } from '../common/decorators/public.decorator';
 
+@Public()
 @Controller('queue')
 export class QueueController {
-  constructor(@Inject('REDIS') private redis: Redis) {}
+  constructor(private readonly queueService: QueueService) {}
 
   @Post('email')
-  async sendEmail(@Body() body: any) {
-    await this.redis.lpush('emailQueue', JSON.stringify(body));
-
-    return { message: 'Job added to queue' };
+  @HttpCode(HttpStatus.ACCEPTED)
+  async enqueueEmail(@Body() dto: EmailJobDto) {
+    await this.queueService.enqueueEmail(dto);
+    return { message: 'Email job accepted and queued for processing' };
   }
 }
