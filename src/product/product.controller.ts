@@ -1,29 +1,30 @@
-import { Controller, Get } from '@nestjs/common';
-import { Inject } from '@nestjs/common';
-import Redis from 'ioredis';
+import {
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  UseInterceptors,
+} from '@nestjs/common';
+import { ProductService } from './product.service';
+import { RedisCacheInterceptor } from '../common/interceptors/redis-cache.interceptor';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 
 @Controller('products')
 export class ProductController {
-  constructor(@Inject('REDIS') private readonly redis: Redis) {}
+  constructor(private readonly productService: ProductService) {}
 
   @Get()
-  async getProducts() {
-    const caching = await this.redis.get('products');
-
-    if (caching) {
-      const ttl = await this.redis.ttl('products');
-      return { ...JSON.parse(caching), cachedTimeLeftSeconds: ttl };
-    }
-
-    const products = [
-      { id: 1, name: 'Product 5' },
-      { id: 2, name: 'Product 10' },
-      { id: 3, name: 'Product 13' },
-    ];
-
-    await this.redis.set('products', JSON.stringify(products), 'EX', 60);
-
-    const return1 = { message: 'Products fetched from database', products };
-    return return1;
+  @UseInterceptors(RedisCacheInterceptor)
+  async getProducts(@CurrentUser() user: { userId: string }) {
+    console.log(`Products requested by: ${user.userId}`);
+    return this.productService.findAll();
+  }
+  
+  @Delete('cache')
+  @HttpCode(HttpStatus.OK)
+  async clearCache() {
+    await this.productService.invalidateCache();
+    return { message: 'Product cache invalidated' };
   }
 }
