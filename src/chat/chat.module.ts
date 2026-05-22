@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
 import { ChatController } from './chat.controller';
-import { RedisModule } from '../redis/redis.module';
+import { ChatService } from './chat.service';
 
 @Module({
-  imports: [RedisModule],
   controllers: [ChatController],
+  providers: [ChatService],
 })
 export class ChatModule {}
