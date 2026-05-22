@@ -1,44 +1,25 @@
-import {
-  Controller,
-  Inject,
-  Post,
-  Body,
-  Sse,
-  MessageEvent,
-} from '@nestjs/common';
-import Redis from 'ioredis';
+import { Body, Controller, MessageEvent, Post, Sse } from '@nestjs/common';
 import { Observable } from 'rxjs';
+import { ChatService } from './chat.service';
+import { SendMessageDto } from './dto/send-message.dto';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { Public } from '../common/decorators/public.decorator';
 
 @Controller('chat')
 export class ChatController {
-  constructor(@Inject('REDIS') private readonly redis: Redis) {}
-// Publish/Subscribe implementation`
+  constructor(private readonly chatService: ChatService) {}
   @Post('send')
-  // Send message to Redis channel
-  async sendMessage(@Body() body: any) {
-    await this.redis.publish('chatChannel', JSON.stringify(body));
-
-    return { message: 'Message sent to chat channel' };
+  async sendMessage(
+    @Body() dto: SendMessageDto,
+    @CurrentUser() user: { userId: string },
+  ) {
+    await this.chatService.sendMessage(dto, user.userId);
+    return { message: 'Published to chat channel', by: user.userId };
   }
-// Subscribe to Redis channel and stream messages to clients using Server-Sent Events (SSE)
+
+  @Public()
   @Sse('subscribe')
   subscribe(): Observable<MessageEvent> {
-    const subscriber = new Redis({ host: 'localhost', port: 6379 });
-
-    return new Observable((observer) => {
-      subscriber.subscribe('chatChannel', (err) => {
-        if (err) observer.error(err);
-      });
-
-      subscriber.on('message', (channel, message) => {
-        observer.next({ data: JSON.parse(message) });
-      });
-
-      // cleanup when client disconnects
-      return () => {
-        subscriber.unsubscribe('chatChannel');
-        subscriber.quit();
-      };
-    });
+    return this.chatService.createMessageStream();
   }
 }
